@@ -1,0 +1,6 @@
+credentials.json
+token.json
+pushover.json
+alerts.json
+*.exe
+cmd/gmailalert/gmailalert
