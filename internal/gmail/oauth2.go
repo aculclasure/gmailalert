@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -61,7 +63,7 @@ func (o *OAuth2) LoadToken(token io.Reader) error {
 
 func (o *OAuth2) GetToken() ([]byte, error) {
 	if o.tok == nil {
-		return nil, errors.New("underlying oauth2 token must not be nil")
+		return nil, errors.New("underlying oauth2 token in oauth2 struct must not be nil")
 	}
 
 	bfr := new(bytes.Buffer)
@@ -71,4 +73,72 @@ func (o *OAuth2) GetToken() ([]byte, error) {
 	}
 
 	return bfr.Bytes(), nil
+}
+
+// OAuth2RedirectServer represents an HTTP server that handles oauth2 redirect
+// requests and displays the state token returned by the oauth2 resource
+// provider.
+type OAuth2RedirectServer struct {
+	Port           int
+	authCodes      chan string
+	authCodeErrors chan error
+	svr            *http.Server
+}
+
+func NewOAuth2RedirectServer(port int) (*OAuth2RedirectServer, error) {
+	if port < 1024 || port > 65535 {
+		return nil, fmt.Errorf("port must be in the range 1024-65535 (got %d)", port)
+	}
+
+	authCodes := make(chan string, 1)
+	authCodeErrors := make(chan error, 1)
+
+	redirectSvr := &OAuth2RedirectServer{
+		Port:           port,
+		authCodes:      authCodes,
+		authCodeErrors: authCodeErrors,
+		svr: &http.Server{
+			Addr:         fmt.Sprintf("localhost:%d", port),
+			ReadTimeout:  10 * time.Second,
+			WriteTimeout: 10 * time.Second,
+		},
+	}
+	rcv := &receiver{authCodes, authCodeErrors}
+	redirectSvr.svr.Handler = http.HandlerFunc(rcv.receiveAuthCodeHandler)
+
+	return redirectSvr, nil
+}
+
+type receiver struct {
+	authCodes      chan string
+	authCodeErrors chan error
+}
+
+func (r *receiver) receiveAuthCodeHandler(w http.ResponseWriter, req *http.Request) {
+	if req.Method != http.MethodGet {
+		errMsg := fmt.Sprintf("request method must be an http get (got %s)", req.Method)
+		http.Error(w, errMsg, http.StatusMethodNotAllowed)
+		r.authCodeErrors <- errors.New(errMsg)
+		return
+	}
+
+	queryString := req.URL.Query()
+	paramVal := queryString.Get("state")
+	if paramVal != "state-token" {
+		errMsg := `request must contain a query parameter "state=state-token"`
+		http.Error(w, errMsg, http.StatusBadRequest)
+		r.authCodeErrors <- errors.New(errMsg)
+		return
+	}
+
+	paramVal = queryString.Get("code")
+	if paramVal == "" {
+		errMsg := `request must contain a non-empty query parameter "code"`
+		http.Error(w, errMsg, http.StatusBadRequest)
+		r.authCodeErrors <- errors.New(errMsg)
+		return
+	}
+
+	w.Write([]byte("Successfully read authorization code sent by OAuth2 resource provider!"))
+	r.authCodes <- paramVal
 }

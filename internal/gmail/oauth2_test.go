@@ -8,6 +8,7 @@ import (
 
 	"github.com/aculclasure/gmailalert/internal/gmail"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func TestNewOAuth2ErrorCases(t *testing.T) {
@@ -93,5 +94,37 @@ func TestLoadTokenWithValidTokenJSONLoadsTokenInOAuth2Struct(t *testing.T) {
 	}
 	if !cmp.Equal(want, got) {
 		t.Error(cmp.Diff(want, got))
+	}
+}
+
+func TestNewOAuth2RedirectServerWithInvalidListenerPortReturnsError(t *testing.T) {
+	t.Parallel()
+	testCases := map[string]int{
+		"listener port smaller than 1024": -1025,
+		"listener port bigger than 65535": 70000,
+	}
+	for name, port := range testCases {
+		t.Run(name, func(t *testing.T) {
+			_, err := gmail.NewOAuth2RedirectServer(port)
+			if err == nil {
+				t.Error("expected an error but did not get one")
+			}
+		})
+	}
+}
+
+func TestNewOAuth2RedirectServerWithValidListenerPortReturnsValidOAuth2RedirectServer(t *testing.T) {
+	t.Parallel()
+	validListenerPort := 4000
+	want := &gmail.OAuth2RedirectServer{Port: validListenerPort}
+	got, err := gmail.NewOAuth2RedirectServer(validListenerPort)
+
+	if err != nil {
+		t.Errorf("gmail.NewOAuth2RedirectServer(%d) returned unexpected error: %s", validListenerPort, err)
+	}
+
+	ignoreOpt := cmpopts.IgnoreUnexported(gmail.OAuth2RedirectServer{})
+	if !cmp.Equal(want, got, ignoreOpt) {
+		cmp.Diff(want, got, ignoreOpt)
 	}
 }
