@@ -124,7 +124,7 @@ func TestNewOAuth2RedirectServerWithValidListenerPortReturnsValidOAuth2RedirectS
 	got, err := gmail.NewOAuth2RedirectServer(validListenerPort)
 
 	if err != nil {
-		t.Errorf("gmail.NewOAuth2RedirectServer(%d) returned unexpected error: %s", validListenerPort, err)
+		t.Fatalf("gmail.NewOAuth2RedirectServer(%d) returned unexpected error: %s", validListenerPort, err)
 	}
 
 	ignoreOpt := cmpopts.IgnoreUnexported(gmail.OAuth2RedirectServer{})
@@ -164,7 +164,7 @@ func TestOAuth2RedirectServer_HandlerErrorCases(t *testing.T) {
 	svrPort := 9001
 	svr, err := gmail.NewOAuth2RedirectServer(svrPort)
 	if err != nil {
-		t.Errorf("NewOAuth2RedirectServer(%d) returned unexpected error: %s", svrPort, err)
+		t.Fatalf("NewOAuth2RedirectServer(%d) returned unexpected error: %s", svrPort, err)
 	}
 
 	go func() {
@@ -179,11 +179,11 @@ func TestOAuth2RedirectServer_HandlerErrorCases(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			req, err := http.NewRequest(tc.requestMethod, "http://"+svrAddr+tc.requestURI, nil)
 			if err != nil {
-				t.Error(err)
+				t.Fatal(err)
 			}
 			resp, err := httpClient.Do(req)
 			if err != nil {
-				t.Error(err)
+				t.Fatal(err)
 			}
 			defer resp.Body.Close()
 			if tc.wantRespCode != resp.StatusCode {
