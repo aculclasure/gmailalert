@@ -2,9 +2,13 @@ package gmail_test
 
 import (
 	"bytes"
+	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aculclasure/gmailalert/internal/gmail"
 	"github.com/google/go-cmp/cmp"
@@ -127,4 +131,67 @@ func TestNewOAuth2RedirectServerWithValidListenerPortReturnsValidOAuth2RedirectS
 	if !cmp.Equal(want, got, ignoreOpt) {
 		cmp.Diff(want, got, ignoreOpt)
 	}
+}
+
+func TestOAuth2RedirectServer_InvokeHandlerWithInvalidHttpMethodReturnsErrorResponses(t *testing.T) {
+	t.Parallel()
+	port := 9001
+	svr, err := gmail.NewOAuth2RedirectServer(port)
+	if err != nil {
+		t.Errorf("gmail.NewOAuth2RedirectServer(%d) returned unexpected error: %s", port, err)
+	}
+
+	go func() {
+		svr.ListenAndServe()
+	}()
+	defer svr.Shutdown()
+	svrAddr := fmt.Sprintf("localhost:%d", port)
+	waitForServer(t, svrAddr)
+
+	url := "http://" + svrAddr
+	resp, err := http.Head(url)
+	if err != nil {
+		t.Errorf("got unexpected error: %s", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("want http response status code %d, got %d", http.StatusMethodNotAllowed, resp.StatusCode)
+	}
+
+	select {
+	case <-svr.NotifyError():
+		return
+	case <-time.After(100 * time.Millisecond):
+		t.Errorf("expected an error notification but did not receive one within 10ms")
+	}
+}
+
+func TestOAuth2RedirectServer_InvokeHandlerWithInvalidURLReturnsErrorResponses(t *testing.T) {
+	t.Parallel()
+
+}
+
+// waitForServer attempts to establish a TCP connection to addr in a given
+// amount of time. It returns upon successfully connecting. Otherwise it crashes
+// the calling test with an error.
+// Credit belongs to https://stackoverflow.com/a/56865986
+func waitForServer(t *testing.T, addr string) {
+	t.Helper()
+
+	backoff := 50 * time.Millisecond
+
+	for i := 0; i < 10; i++ {
+		conn, err := net.DialTimeout("tcp", addr, 1*time.Second)
+		if err != nil {
+			time.Sleep(backoff)
+			continue
+		}
+		err = conn.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+
+	t.Fatalf("server on addr %s not up after 10 attempts", addr)
 }

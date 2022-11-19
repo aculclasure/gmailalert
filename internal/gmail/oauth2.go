@@ -2,6 +2,7 @@ package gmail
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -90,44 +91,72 @@ func NewOAuth2RedirectServer(port int) (*OAuth2RedirectServer, error) {
 		return nil, fmt.Errorf("port must be in the range 1024-65535 (got %d)", port)
 	}
 
-	authCodes := make(chan string, 1)
-	authCodeErrors := make(chan error, 1)
+	// authCodes := make(chan string, 1)
+	// authCodeErrors := make(chan error, 1)
 
 	redirectSvr := &OAuth2RedirectServer{
 		Port:           port,
-		authCodes:      authCodes,
-		authCodeErrors: authCodeErrors,
+		authCodes:      make(chan string, 1),
+		authCodeErrors: make(chan error, 1),
 		svr: &http.Server{
 			Addr:         fmt.Sprintf("localhost:%d", port),
 			ReadTimeout:  10 * time.Second,
 			WriteTimeout: 10 * time.Second,
 		},
 	}
-	rcv := &receiver{authCodes, authCodeErrors}
-	redirectSvr.svr.Handler = http.HandlerFunc(rcv.receiveAuthCodeHandler)
+	//rcv := &receiver{authCodes, authCodeErrors}
+	redirectSvr.svr.Handler = http.HandlerFunc(redirectSvr.Handler)
 
 	return redirectSvr, nil
 }
 
-type receiver struct {
-	authCodes      chan string
-	authCodeErrors chan error
+func (o *OAuth2RedirectServer) NotifyAuthCode() <-chan string {
+	return o.authCodes
 }
 
-func (r *receiver) receiveAuthCodeHandler(w http.ResponseWriter, req *http.Request) {
-	if req.Method != http.MethodGet {
-		errMsg := fmt.Sprintf("request method must be an http get (got %s)", req.Method)
+func (o *OAuth2RedirectServer) NotifyError() <-chan error {
+	return o.authCodeErrors
+}
+
+func (o *OAuth2RedirectServer) ListenAndServe() error {
+	err := o.svr.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+
+	return nil
+}
+
+// Shutdown gracefully shuts down the HTTP server wrapped by o. If the server
+// is not shutdown within 5 seconds, then it is force-stopped.
+func (o *OAuth2RedirectServer) Shutdown() error {
+	close(o.authCodeErrors)
+	close(o.authCodes)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := o.svr.Shutdown(ctx)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (o *OAuth2RedirectServer) Handler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		errMsg := fmt.Sprintf("request method must be an http get (got %s)", r.Method)
 		http.Error(w, errMsg, http.StatusMethodNotAllowed)
-		r.authCodeErrors <- errors.New(errMsg)
+		o.authCodeErrors <- errors.New(errMsg)
 		return
 	}
 
-	queryString := req.URL.Query()
+	queryString := r.URL.Query()
 	paramVal := queryString.Get("state")
 	if paramVal != "state-token" {
 		errMsg := `request must contain a query parameter "state=state-token"`
 		http.Error(w, errMsg, http.StatusBadRequest)
-		r.authCodeErrors <- errors.New(errMsg)
+		o.authCodeErrors <- errors.New(errMsg)
 		return
 	}
 
@@ -135,10 +164,44 @@ func (r *receiver) receiveAuthCodeHandler(w http.ResponseWriter, req *http.Reque
 	if paramVal == "" {
 		errMsg := `request must contain a non-empty query parameter "code"`
 		http.Error(w, errMsg, http.StatusBadRequest)
-		r.authCodeErrors <- errors.New(errMsg)
+		o.authCodeErrors <- errors.New(errMsg)
 		return
 	}
 
 	w.Write([]byte("Successfully read authorization code sent by OAuth2 resource provider!"))
-	r.authCodes <- paramVal
+	o.authCodes <- paramVal
 }
+
+// type receiver struct {
+// 	authCodes      chan string
+// 	authCodeErrors chan error
+// }
+
+// func (r *receiver) receiveAuthCodeHandler(w http.ResponseWriter, req *http.Request) {
+// 	if req.Method != http.MethodGet {
+// 		errMsg := fmt.Sprintf("request method must be an http get (got %s)", req.Method)
+// 		http.Error(w, errMsg, http.StatusMethodNotAllowed)
+// 		r.authCodeErrors <- errors.New(errMsg)
+// 		return
+// 	}
+
+// 	queryString := req.URL.Query()
+// 	paramVal := queryString.Get("state")
+// 	if paramVal != "state-token" {
+// 		errMsg := `request must contain a query parameter "state=state-token"`
+// 		http.Error(w, errMsg, http.StatusBadRequest)
+// 		r.authCodeErrors <- errors.New(errMsg)
+// 		return
+// 	}
+
+// 	paramVal = queryString.Get("code")
+// 	if paramVal == "" {
+// 		errMsg := `request must contain a non-empty query parameter "code"`
+// 		http.Error(w, errMsg, http.StatusBadRequest)
+// 		r.authCodeErrors <- errors.New(errMsg)
+// 		return
+// 	}
+
+// 	w.Write([]byte("Successfully read authorization code sent by OAuth2 resource provider!"))
+// 	r.authCodes <- paramVal
+// }
