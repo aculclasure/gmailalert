@@ -193,6 +193,8 @@ func TestOAuth2RedirectServer_HandlerErrorCases(t *testing.T) {
 			select {
 			case <-svr.NotifyError():
 				return
+			case code := <-svr.NotifyAuthCode():
+				t.Error("did not expect an auth code notification but got one:", code)
 			case <-time.After(notificationTimeout):
 				t.Errorf("expected an error notification but did not receive one within %s", notificationTimeout)
 			}
