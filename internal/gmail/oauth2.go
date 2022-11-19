@@ -91,9 +91,6 @@ func NewOAuth2RedirectServer(port int) (*OAuth2RedirectServer, error) {
 		return nil, fmt.Errorf("port must be in the range 1024-65535 (got %d)", port)
 	}
 
-	// authCodes := make(chan string, 1)
-	// authCodeErrors := make(chan error, 1)
-
 	redirectSvr := &OAuth2RedirectServer{
 		Port:           port,
 		authCodes:      make(chan string, 1),
@@ -104,7 +101,6 @@ func NewOAuth2RedirectServer(port int) (*OAuth2RedirectServer, error) {
 			WriteTimeout: 10 * time.Second,
 		},
 	}
-	//rcv := &receiver{authCodes, authCodeErrors}
 	redirectSvr.svr.Handler = http.HandlerFunc(redirectSvr.Handler)
 
 	return redirectSvr, nil
@@ -171,37 +167,3 @@ func (o *OAuth2RedirectServer) Handler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Successfully read authorization code sent by OAuth2 resource provider!"))
 	o.authCodes <- paramVal
 }
-
-// type receiver struct {
-// 	authCodes      chan string
-// 	authCodeErrors chan error
-// }
-
-// func (r *receiver) receiveAuthCodeHandler(w http.ResponseWriter, req *http.Request) {
-// 	if req.Method != http.MethodGet {
-// 		errMsg := fmt.Sprintf("request method must be an http get (got %s)", req.Method)
-// 		http.Error(w, errMsg, http.StatusMethodNotAllowed)
-// 		r.authCodeErrors <- errors.New(errMsg)
-// 		return
-// 	}
-
-// 	queryString := req.URL.Query()
-// 	paramVal := queryString.Get("state")
-// 	if paramVal != "state-token" {
-// 		errMsg := `request must contain a query parameter "state=state-token"`
-// 		http.Error(w, errMsg, http.StatusBadRequest)
-// 		r.authCodeErrors <- errors.New(errMsg)
-// 		return
-// 	}
-
-// 	paramVal = queryString.Get("code")
-// 	if paramVal == "" {
-// 		errMsg := `request must contain a non-empty query parameter "code"`
-// 		http.Error(w, errMsg, http.StatusBadRequest)
-// 		r.authCodeErrors <- errors.New(errMsg)
-// 		return
-// 	}
-
-// 	w.Write([]byte("Successfully read authorization code sent by OAuth2 resource provider!"))
-// 	r.authCodes <- paramVal
-// }
