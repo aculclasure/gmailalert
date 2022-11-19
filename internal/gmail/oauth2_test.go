@@ -168,7 +168,36 @@ func TestOAuth2RedirectServer_InvokeHandlerWithInvalidHttpMethodReturnsErrorResp
 
 func TestOAuth2RedirectServer_InvokeHandlerWithInvalidURLReturnsErrorResponses(t *testing.T) {
 	t.Parallel()
+	port := 9002
+	svr, err := gmail.NewOAuth2RedirectServer(port)
+	if err != nil {
+		t.Errorf("gmail.NewOAuth2RedirectServer(%d) returned unexpected error: %s", port, err)
+	}
 
+	go func() {
+		svr.ListenAndServe()
+	}()
+	defer svr.Shutdown()
+	svrAddr := fmt.Sprintf("localhost:%d", port)
+	waitForServer(t, svrAddr)
+
+	urlMissingStateQueryParam := "http://" + svrAddr + "/?code=asdfadsf_afsa4234l"
+	resp, err := http.Get(urlMissingStateQueryParam)
+	if err != nil {
+		t.Errorf("got unexpected error: %s", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("want http response status code %d, got %d", http.StatusBadRequest, resp.StatusCode)
+	}
+
+	timeOutDuration := 100 * time.Millisecond
+	select {
+	case <-svr.NotifyError():
+		return
+	case <-time.After(timeOutDuration):
+		t.Errorf("expected an error notification but did not receive one within %s", timeOutDuration)
+	}
 }
 
 // waitForServer attempts to establish a TCP connection to addr in a given
