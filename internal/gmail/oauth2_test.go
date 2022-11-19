@@ -133,70 +133,70 @@ func TestNewOAuth2RedirectServerWithValidListenerPortReturnsValidOAuth2RedirectS
 	}
 }
 
-func TestOAuth2RedirectServer_InvokeHandlerWithInvalidHttpMethodReturnsErrorResponses(t *testing.T) {
+func TestOAuth2RedirectServer_HandlerErrorCases(t *testing.T) {
 	t.Parallel()
-	port := 9001
-	svr, err := gmail.NewOAuth2RedirectServer(port)
+	testCases := map[string]struct {
+		requestMethod string
+		requestURI    string
+		wantRespCode  int
+	}{
+		"RequestWithInvalidHttpMethod": {
+			requestMethod: http.MethodHead,
+			wantRespCode:  http.StatusMethodNotAllowed,
+		},
+		"RequestURLMissingStateQueryParam": {
+			requestMethod: http.MethodGet,
+			requestURI:    "/?code=asdfadsf_afsa4234l",
+			wantRespCode:  http.StatusBadRequest,
+		},
+		"RequestURLMissingCodeQueryParam": {
+			requestMethod: http.MethodGet,
+			requestURI:    "/?state=state-token",
+			wantRespCode:  http.StatusBadRequest,
+		},
+		"RequestURLWithEmptyCodeQueryParam": {
+			requestMethod: http.MethodGet,
+			requestURI:    "/?state=state-token&code=",
+			wantRespCode:  http.StatusBadRequest,
+		},
+	}
+	httpClient := &http.Client{Timeout: 5 * time.Second}
+	svrPort := 9001
+	svr, err := gmail.NewOAuth2RedirectServer(svrPort)
 	if err != nil {
-		t.Errorf("gmail.NewOAuth2RedirectServer(%d) returned unexpected error: %s", port, err)
+		t.Errorf("NewOAuth2RedirectServer(%d) returned unexpected error: %s", svrPort, err)
 	}
 
 	go func() {
 		svr.ListenAndServe()
 	}()
 	defer svr.Shutdown()
-	svrAddr := fmt.Sprintf("localhost:%d", port)
+	svrAddr := fmt.Sprintf("localhost:%d", svrPort)
 	waitForServer(t, svrAddr)
+	notificationTimeout := 100 * time.Millisecond
 
-	url := "http://" + svrAddr
-	resp, err := http.Head(url)
-	if err != nil {
-		t.Errorf("got unexpected error: %s", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusMethodNotAllowed {
-		t.Errorf("want http response status code %d, got %d", http.StatusMethodNotAllowed, resp.StatusCode)
-	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			req, err := http.NewRequest(tc.requestMethod, "http://"+svrAddr+tc.requestURI, nil)
+			if err != nil {
+				t.Error(err)
+			}
+			resp, err := httpClient.Do(req)
+			if err != nil {
+				t.Error(err)
+			}
+			defer resp.Body.Close()
+			if tc.wantRespCode != resp.StatusCode {
+				t.Errorf("want response code %d, got %d", tc.wantRespCode, resp.StatusCode)
+			}
 
-	select {
-	case <-svr.NotifyError():
-		return
-	case <-time.After(100 * time.Millisecond):
-		t.Errorf("expected an error notification but did not receive one within 10ms")
-	}
-}
-
-func TestOAuth2RedirectServer_InvokeHandlerWithInvalidURLReturnsErrorResponses(t *testing.T) {
-	t.Parallel()
-	port := 9002
-	svr, err := gmail.NewOAuth2RedirectServer(port)
-	if err != nil {
-		t.Errorf("gmail.NewOAuth2RedirectServer(%d) returned unexpected error: %s", port, err)
-	}
-
-	go func() {
-		svr.ListenAndServe()
-	}()
-	defer svr.Shutdown()
-	svrAddr := fmt.Sprintf("localhost:%d", port)
-	waitForServer(t, svrAddr)
-
-	urlMissingStateQueryParam := "http://" + svrAddr + "/?code=asdfadsf_afsa4234l"
-	resp, err := http.Get(urlMissingStateQueryParam)
-	if err != nil {
-		t.Errorf("got unexpected error: %s", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("want http response status code %d, got %d", http.StatusBadRequest, resp.StatusCode)
-	}
-
-	timeOutDuration := 100 * time.Millisecond
-	select {
-	case <-svr.NotifyError():
-		return
-	case <-time.After(timeOutDuration):
-		t.Errorf("expected an error notification but did not receive one within %s", timeOutDuration)
+			select {
+			case <-svr.NotifyError():
+				return
+			case <-time.After(notificationTimeout):
+				t.Errorf("expected an error notification but did not receive one within %s", notificationTimeout)
+			}
+		})
 	}
 }
 
