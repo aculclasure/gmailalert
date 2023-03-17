@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"golang.org/x/oauth2"
@@ -15,19 +16,39 @@ import (
 	"google.golang.org/api/gmail/v1"
 )
 
+type OAuth2Opt func(*OAuth2)
+
+func WithTokenFile(tokFile string) OAuth2Opt {
+	return func(o *OAuth2) {
+		o.TokenFile = tokFile
+	}
+}
+
+func WithRedirectServerPort(port int) OAuth2Opt {
+	return func(o *OAuth2) {
+		o.RedirectServerPort = port
+	}
+}
+
 // The OAuth2 type contains fields needed for communicating with the Google
 // OAuth2 provider.
 type OAuth2 struct {
 	// The user's Google console client credentials in JSON format.
 	GoogleCfg []byte
-	cfg       *oauth2.Config
-	tok       *oauth2.Token
+	// The name of the file containing the JSON-formatted OAuth2 token.
+	TokenFile string
+	// The port that the OAuth2 redirect server should listen on for requests
+	// from the Google OAuth2 resource provider. This is necessary when the
+	// OAuth2 token must be remotely fetched.
+	RedirectServerPort int
+	cfg                *oauth2.Config
+	tok                *oauth2.Token
 }
 
 // NewOAuth2 accepts a JSON Google configuration (typically read in from the
 // user's config.json file) and returns an OAuth2 struct. An error is returned
 // if the Google configuration is nil, cannot be read, or is empty.
-func NewOAuth2(googleCfg io.Reader) (*OAuth2, error) {
+func NewOAuth2(googleCfg io.Reader, opts ...OAuth2Opt) (*OAuth2, error) {
 	if googleCfg == nil {
 		return nil, errors.New("google configuration must not be nil")
 	}
@@ -40,7 +61,12 @@ func NewOAuth2(googleCfg io.Reader) (*OAuth2, error) {
 		return nil, errors.New("google configuration must not be empty")
 	}
 
-	return &OAuth2{GoogleCfg: cfgBytes}, nil
+	o := &OAuth2{GoogleCfg: cfgBytes, TokenFile: "token.json", RedirectServerPort: 9999}
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	return o, nil
 }
 
 // LoadConfig initializes the private OAuth2 configuration of the *OAuth2 receiver using
@@ -75,6 +101,59 @@ func (o *OAuth2) LoadToken(token io.Reader) error {
 	return nil
 }
 
+func (o *OAuth2) LoadToken1() error {
+	err := o.loadLocalToken()
+	if err != nil {
+		return o.loadRemoteToken()
+	}
+
+	return nil
+}
+
+func (o *OAuth2) loadLocalToken() error {
+	f, err := os.Open(o.TokenFile)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var tok oauth2.Token
+	err = json.NewDecoder(f).Decode(&tok)
+	if err != nil {
+		return err
+	}
+
+	o.tok = &tok
+	return nil
+}
+
+func (o *OAuth2) loadRemoteToken() error {
+	svr, err := NewOAuth2RedirectServer(o.RedirectServerPort)
+	if err != nil {
+		return err
+	}
+	defer svr.Shutdown()
+	go func() {
+		svr.ListenAndServe()
+	}()
+
+	authURL := o.cfg.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
+	fmt.Print("To continue, please open a web browser and go to the following URL: ", authURL)
+	var code string
+	select {
+	case code = <-svr.NotifyAuthCode():
+	case err = <-svr.NotifyError():
+		return err
+	}
+
+	tok, err := o.cfg.Exchange(context.Background(), code)
+	if err != nil {
+		return err
+	}
+	o.tok = tok
+	return nil
+}
+
 // GetToken returns the privately stored OAuth2 token in the *OAuth2 receiver as
 // a slice of bytes. An error is returned if the underlying OAuth2 token is nil
 // or if there is problem encoding the underlying OAuth2 token into a byte slice.
@@ -90,6 +169,16 @@ func (o *OAuth2) GetToken() ([]byte, error) {
 	}
 
 	return bfr.Bytes(), nil
+}
+
+func (o *OAuth2) Client() (*http.Client, error) {
+	if o.cfg == nil {
+		return nil, errors.New("oauth2 must have a google credentials configuration loaded")
+	}
+	if o.tok != nil {
+		return o.cfg.Client(context.Background(), o.tok), nil
+	}
+	return nil, nil
 }
 
 // OAuth2RedirectServer represents an HTTP server that handles oauth2 redirect
