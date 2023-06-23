@@ -26,10 +26,6 @@ func TestFindEmailsUseCase_RunWithReturnedEmailResultsReturnsExpectedEmailQueryR
 	}
 	query := processor.EmailQuery{
 		SearchExpression: "is:unread subject:Payment Due!",
-		Alert: processor.Alert{
-			Sound:       "cashregister",
-			Destination: "pagerdutyappid",
-		},
 	}
 	want := processor.EmailQueryResult{
 		Query:          query,
