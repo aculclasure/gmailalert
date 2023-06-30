@@ -7,6 +7,7 @@ import (
 )
 
 func TestAlertOKErrorCases(t *testing.T) {
+	t.Parallel()
 	testCases := map[string]processor.Alert{
 		"Empty message field returns error": {
 			Message:   "",
@@ -38,6 +39,7 @@ func TestAlertOKErrorCases(t *testing.T) {
 }
 
 func TestAlertOKWithValidAlertDoesNotReturnError(t *testing.T) {
+	t.Parallel()
 	validAlert := processor.Alert{
 		Message:   "Got an alert",
 		Title:     "Alert",
