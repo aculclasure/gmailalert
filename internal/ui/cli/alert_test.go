@@ -121,3 +121,67 @@ func TestDecodeAlerts(t *testing.T) {
 	}
 
 }
+
+func TestAlert_OKErrorCases(t *testing.T) {
+	t.Parallel()
+	testCases := map[string]cli.Alert{
+		"Missing gmail query returns error": {
+			GmailQuery:     "",
+			PushoverTarget: "abcd",
+			PushoverTitle:  "title",
+			PushoverSound:  "siren",
+			PushoverMsg:    "got an alert",
+		},
+		"Missing pushover target returns error": {
+			GmailQuery:     "is:unread",
+			PushoverTarget: "",
+			PushoverTitle:  "title",
+			PushoverSound:  "siren",
+			PushoverMsg:    "got an alert",
+		},
+		"Missing pushover title returns error": {
+			GmailQuery:     "is:unread",
+			PushoverTarget: "abce",
+			PushoverTitle:  "",
+			PushoverSound:  "siren",
+			PushoverMsg:    "got an alert",
+		},
+		"Missing pushover sound returns error": {
+			GmailQuery:     "is:unread",
+			PushoverTarget: "abce",
+			PushoverTitle:  "title",
+			PushoverSound:  "",
+			PushoverMsg:    "got an alert",
+		},
+		"Missing pushover message returns error": {
+			GmailQuery:     "is:unread",
+			PushoverTarget: "abce",
+			PushoverTitle:  "title",
+			PushoverSound:  "siren",
+			PushoverMsg:    "",
+		},
+	}
+	for name, tc := range testCases {
+		t.Run(name, func(t *testing.T) {
+			err := tc.OK()
+			if err == nil {
+				t.Fatal("expected an error but did not get one")
+			}
+		})
+	}
+}
+
+func TestAlert_OKWithValidAlertDoesNotReturnError(t *testing.T) {
+	t.Parallel()
+	validAlert := cli.Alert{
+		GmailQuery:     "is:unread",
+		PushoverTarget: "abce",
+		PushoverTitle:  "title",
+		PushoverSound:  "siren",
+		PushoverMsg:    "message",
+	}
+	err := validAlert.OK()
+	if err != nil {
+		t.Fatalf("got unexpected error: %v", err)
+	}
+}

@@ -6,6 +6,7 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/gregdel/pushover v1.1.0
 	golang.org/x/oauth2 v0.5.0
+	golang.org/x/sync v0.1.0
 	google.golang.org/api v0.111.0
 )
 
