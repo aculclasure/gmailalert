@@ -48,6 +48,15 @@ func WithLogger(logger Logger) OAuth2Opt {
 	}
 }
 
+// WithSaveRemotelyFetchedToken accepts a boolean value indicating whether to
+// save remotely fetched OAuth2 tokens into a local file and returns an
+// OAuth2Opt that wires the value into an OAuth2 struct.
+func WithSaveRemotelyFetchedToken(decision bool) OAuth2Opt {
+	return func(o *OAuth2) {
+		o.SaveTokenLocally = decision
+	}
+}
+
 // The OAuth2 type contains fields needed for communicating with the Google
 // OAuth2 provider.
 type OAuth2 struct {
@@ -59,6 +68,7 @@ type OAuth2 struct {
 	// from the Google OAuth2 resource provider. This is necessary when the
 	// OAuth2 token must be remotely fetched.
 	RedirectServerPort int
+	SaveTokenLocally   bool
 	cfg                *oauth2.Config
 	tok                *oauth2.Token
 	logger             Logger
@@ -112,7 +122,7 @@ func (o *OAuth2) LoadConfig() error {
 func (o *OAuth2) LoadToken() error {
 	err := o.loadLocalToken()
 	if err != nil {
-		o.logger.Printf("got error when attempting to load an oauth2 token from local file: %s: %s", o.TokenFile, err)
+		o.logger.Printf("got error when attempting to load an oauth2 token from local file %s: %s", o.TokenFile, err)
 		err = o.loadRemoteToken()
 		if err != nil {
 			return err
@@ -165,6 +175,13 @@ func (o *OAuth2) loadRemoteToken() error {
 		return err
 	}
 	o.tok = tok
+	if o.SaveTokenLocally {
+		err = o.SaveToken(o.TokenFile)
+		if err != nil {
+			return err
+		}
+		o.logger.Printf("saved remotely fetched oauth2 token to file %s\n", o.TokenFile)
+	}
 	return nil
 }
 

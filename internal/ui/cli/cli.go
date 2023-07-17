@@ -42,6 +42,7 @@ func Run(args []string) error {
 		f,
 		gmail.WithRedirectServerPort(app.redirectSvrPort),
 		gmail.WithTokenFile(app.tokenFile),
+		gmail.WithSaveRemotelyFetchedToken(app.saveTokenLocally),
 		gmail.WithLogger(debugLogger),
 	)
 	if err != nil {
@@ -101,6 +102,7 @@ type cliEnv struct {
 	alertsConfigFile string
 	credsFile        string
 	tokenFile        string
+	saveTokenLocally bool
 	redirectSvrPort  int
 	debug            bool
 }
@@ -127,6 +129,11 @@ func (c *cliEnv) fromArgs(args []string) error {
 		"token-file",
 		"token.json",
 		"json file to read your Gmail OAuth2 token from (if present), or to save your Gmail OAuth2 token into (if not present)")
+	fs.BoolVar(
+		&c.saveTokenLocally,
+		"save-token",
+		false,
+		"save remotely fetched oauth2 token into the file specified in the -token-file flag")
 	fs.IntVar(
 		&c.redirectSvrPort,
 		"port",

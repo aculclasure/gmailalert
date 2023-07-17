@@ -52,16 +52,20 @@ func (p *Processor) Process(alerts []Alert) error {
 				p.Logger.Printf(`query result "%+v" did not result in an alarm condition`, queryResult)
 				return nil
 			}
-			err = p.AlertSender.Run(processor.Alert{
+			alt := processor.Alert{
 				Message:   alert.PushoverMsg,
 				Title:     alert.PushoverTitle,
 				Recipient: alert.PushoverTarget,
-			})
+				Sound:     alert.PushoverSound,
+			}
+			p.Logger.Printf("sending alert %+v\n", alt)
+			err = p.AlertSender.Run(alt)
 			if err != nil {
 				return err
 			}
 			atomic.AddUint64(&numEmittedAlerts, 1)
-			fmt.Printf(`alert titled "%s" successfully sent`, alert.PushoverTitle)
+			p.Logger.Printf("successfully sent alert %+v\n", alt)
+			fmt.Printf("Alert titled \"%s\" successfully sent\n", alert.PushoverTitle)
 			return nil
 		})
 	}
