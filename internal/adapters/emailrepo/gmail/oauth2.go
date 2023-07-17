@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -15,6 +16,10 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/gmail/v1"
 )
+
+type Logger interface {
+	Printf(string, ...interface{})
+}
 
 // OAuth2Opt represents a functional option that can be applied to an OAuth2.
 type OAuth2Opt func(*OAuth2)
@@ -35,6 +40,14 @@ func WithRedirectServerPort(port int) OAuth2Opt {
 	}
 }
 
+// WithLogger accepts a Logger and returns an OAuth2Opt that wires the logger
+// into an OAuth2 struct.
+func WithLogger(logger Logger) OAuth2Opt {
+	return func(o *OAuth2) {
+		o.logger = logger
+	}
+}
+
 // The OAuth2 type contains fields needed for communicating with the Google
 // OAuth2 provider.
 type OAuth2 struct {
@@ -48,6 +61,7 @@ type OAuth2 struct {
 	RedirectServerPort int
 	cfg                *oauth2.Config
 	tok                *oauth2.Token
+	logger             Logger
 }
 
 // NewOAuth2 accepts a JSON Google configuration (typically read in from the
@@ -65,8 +79,11 @@ func NewOAuth2(googleCfg io.Reader, opts ...OAuth2Opt) (*OAuth2, error) {
 	if len(cfgBytes) == 0 {
 		return nil, errors.New("google configuration must not be empty")
 	}
-
-	o := &OAuth2{GoogleCfg: cfgBytes, TokenFile: "token.json", RedirectServerPort: 9999}
+	o := &OAuth2{
+		GoogleCfg:          cfgBytes,
+		TokenFile:          "token.json",
+		RedirectServerPort: 9999,
+		logger:             log.New(io.Discard, "", log.LstdFlags)}
 	for _, opt := range opts {
 		opt(o)
 	}
@@ -83,7 +100,7 @@ func (o *OAuth2) LoadConfig() error {
 	if err != nil {
 		return err
 	}
-
+	o.logger.Printf("successfully loaded google oauth2 configuration: %+v", cfg)
 	o.cfg = cfg
 	return nil
 }
@@ -95,9 +112,15 @@ func (o *OAuth2) LoadConfig() error {
 func (o *OAuth2) LoadToken() error {
 	err := o.loadLocalToken()
 	if err != nil {
-		return o.loadRemoteToken()
+		o.logger.Printf("got error when attempting to load an oauth2 token from a local source: %s", err)
+		err = o.loadRemoteToken()
+		if err != nil {
+			return err
+		}
+		o.logger.Printf("successfully loaded an oauth2 token via a remote call: %+v", o.tok)
+		return nil
 	}
-
+	o.logger.Printf("succesfully loaded an oauth2 token from a local source: %+v", o.tok)
 	return nil
 }
 

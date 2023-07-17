@@ -15,6 +15,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
+var validCfg = `{"installed":{"client_id":"ID","project_id":"PROJECTID","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_secret":"SECRET","redirect_uris":["http://localhost:9999"]}}`
+
 func TestNewOAuth2ErrorCases(t *testing.T) {
 	t.Parallel()
 	testCases := map[string]struct {
@@ -40,7 +42,6 @@ func TestNewOAuth2ErrorCases(t *testing.T) {
 
 func TestNewOAuth2WithValidGoogleConfigReturnsConfiguredOAuth2Struct(t *testing.T) {
 	t.Parallel()
-	validCfg := `{"installed":{"client_id":"ID","project_id":"PROJECTID","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_secret":"SECRET","redirect_uris":["http://localhost:9999"]}}`
 	googleCfg := strings.NewReader(validCfg)
 	want := []byte(validCfg)
 
@@ -58,8 +59,11 @@ func TestNewOAuth2WithValidGoogleConfigReturnsConfiguredOAuth2Struct(t *testing.
 func TestLoadTokenWithTokenFilePresentLoadsTokenIntoOAuth2Struct(t *testing.T) {
 	t.Parallel()
 	testFile := "testdata/test-oauth2-token.json"
-	auth := &gmail.OAuth2{TokenFile: testFile}
-	err := auth.LoadToken()
+	auth, err := gmail.NewOAuth2(strings.NewReader(validCfg), gmail.WithTokenFile(testFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = auth.LoadToken()
 	if err != nil {
 		t.Fatal(err)
 	}
