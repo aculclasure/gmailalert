@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	"github.com/aculclasure/gmailalert/internal/core/processor"
 	"golang.org/x/sync/errgroup"
@@ -26,7 +27,11 @@ type Processor struct {
 }
 
 func (p *Processor) Process(alerts []Alert) error {
-	var errGrp errgroup.Group
+	var (
+		errGrp           errgroup.Group
+		numEmittedAlerts uint64
+	)
+	fmt.Printf("Processing %d email queries to determine if any alerts will be emitted...\n", len(alerts))
 	for _, alert := range alerts {
 		alert := alert
 		errGrp.Go(func() error {
@@ -40,7 +45,7 @@ func (p *Processor) Process(alerts []Alert) error {
 			if err != nil {
 				return err
 			}
-			alert.PushoverMsg = fmt.Sprintf(`Found %d emails matching query "%s"`,
+			alert.PushoverMsg = fmt.Sprintf(`found %d emails matching query "%s"`,
 				len(queryResult.MatchingEmails), alert.GmailQuery)
 			p.Logger.Printf("%s", alert.PushoverMsg)
 			if !processor.AlarmOnResult(queryResult) {
@@ -55,10 +60,12 @@ func (p *Processor) Process(alerts []Alert) error {
 			if err != nil {
 				return err
 			}
-			fmt.Printf(`notification titled "%s" successfully sent`, alert.PushoverTitle)
+			atomic.AddUint64(&numEmittedAlerts, 1)
+			fmt.Printf(`alert titled "%s" successfully sent`, alert.PushoverTitle)
 			return nil
 		})
 	}
 	err := errGrp.Wait()
+	fmt.Printf("Emitted %d alerts\n", numEmittedAlerts)
 	return err
 }

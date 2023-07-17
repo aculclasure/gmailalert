@@ -112,7 +112,7 @@ func (o *OAuth2) LoadConfig() error {
 func (o *OAuth2) LoadToken() error {
 	err := o.loadLocalToken()
 	if err != nil {
-		o.logger.Printf("got error when attempting to load an oauth2 token from a local source: %s", err)
+		o.logger.Printf("got error when attempting to load an oauth2 token from local file: %s: %s", o.TokenFile, err)
 		err = o.loadRemoteToken()
 		if err != nil {
 			return err
@@ -120,7 +120,7 @@ func (o *OAuth2) LoadToken() error {
 		o.logger.Printf("successfully loaded an oauth2 token via a remote call: %+v", o.tok)
 		return nil
 	}
-	o.logger.Printf("succesfully loaded an oauth2 token from a local source: %+v", o.tok)
+	o.logger.Printf("successfully loaded an oauth2 token from local file %s: %+v", o.TokenFile, o.tok)
 	return nil
 }
 
