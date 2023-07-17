@@ -38,7 +38,12 @@ func Run(args []string) error {
 		return err
 	}
 	defer f.Close()
-	gmailOauth, err := gmail.NewOAuth2(f, gmail.WithRedirectServerPort(app.redirectSvrPort), gmail.WithTokenFile(app.tokenFile))
+	gmailOauth, err := gmail.NewOAuth2(
+		f,
+		gmail.WithRedirectServerPort(app.redirectSvrPort),
+		gmail.WithTokenFile(app.tokenFile),
+		gmail.WithLogger(debugLogger),
+	)
 	if err != nil {
 		return err
 	}
