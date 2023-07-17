@@ -153,13 +153,6 @@ func TestAlert_OKErrorCases(t *testing.T) {
 			PushoverSound:  "",
 			PushoverMsg:    "got an alert",
 		},
-		"Missing pushover message returns error": {
-			GmailQuery:     "is:unread",
-			PushoverTarget: "abce",
-			PushoverTitle:  "title",
-			PushoverSound:  "siren",
-			PushoverMsg:    "",
-		},
 	}
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {

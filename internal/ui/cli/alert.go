@@ -49,9 +49,19 @@ func DecodeAlerts(rdr io.Reader) (AlertConfig, error) {
 
 // OK validates a given Alert and returns an error if any of its fields are empty.
 func (a Alert) OK() error {
-	if a.GmailQuery == "" || a.PushoverMsg == "" || a.PushoverSound == "" || a.PushoverTarget == "" || a.PushoverTitle == "" {
-		return fmt.Errorf("all fields in the alert must be non-empty, got %+q", a)
+	// if a.GmailQuery == "" || a.PushoverMsg == "" || a.PushoverSound == "" || a.PushoverTarget == "" || a.PushoverTitle == "" {
+	// 	return fmt.Errorf("error validating alert %+q: all fields in the alert must be non-empty", a)
+	// }
+	switch {
+	case a.GmailQuery == "":
+		return errors.New("error: alert must have a non-empty gmail query field")
+	case a.PushoverTitle == "":
+		return errors.New("error: alert must have a non-empty pushover title field")
+	case a.PushoverSound == "":
+		return errors.New("error: alert must have a non-empty pushover sound field")
+	case a.PushoverTarget == "":
+		return errors.New("error: alert must have a non-empty pushover target field")
+	default:
+		return nil
 	}
-
-	return nil
 }

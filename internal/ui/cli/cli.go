@@ -47,6 +47,14 @@ func Run(args []string) error {
 	if err != nil {
 		return err
 	}
+	err = gmailOauth.LoadConfig()
+	if err != nil {
+		return err
+	}
+	err = gmailOauth.LoadToken()
+	if err != nil {
+		return err
+	}
 	hc, err := gmailOauth.Client()
 	if err != nil {
 		return err
