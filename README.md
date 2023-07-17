@@ -20,6 +20,8 @@ Usage of gmailalert:
         enable debug-level-logging
   -port int
         the port for the local http server to listen on for redirects from the Gmail OAuth2 resource provider (default 9999)
+  -save-token
+        save remotely fetched oauth2 token into the file specified in the -token-file flag
   -token-file string
         json file to read your Gmail OAuth2 token from (if present), or to save your Gmail OAuth2 token into (if not present) (default "token.json")
 ```
@@ -32,13 +34,13 @@ Here is an example configuration:
     "pushoverapp": "NOT SHOWN HERE",
     "alerts": [
         {   
-            "gmailquery": "is:unread subject:Your Bill is Available Online",     
+            "gmailquery": "is:unread subject:\"Your Bill is Available Online\"",     
             "pushovertarget": "NOT SHOWN HERE",
             "pushovertitle": "Bill Due!",
             "pushoversound": "cashregister"
         },
         {   
-            "gmailquery": "is:unread subject:Your zoom meeting has started",     
+            "gmailquery": "is:unread subject:\"Your zoom meeting has started\"",     
             "pushovertarget": "NOT SHOWN HERE",
             "pushovertitle": "Zoom Meeting Started!",
             "pushoversound": "siren"
@@ -54,9 +56,8 @@ For example, assuming the JSON configuration shown above is saved in a file call
 
 ```
 $ ./gmailalert -alerts-cfg-file alerts.json 
-INFO: 2022/08/17 22:31:21 Found 0 emails matching query "is:unread subject:Your zoom meeting has started"
-INFO: 2022/08/17 22:31:21 Found 1 emails matching query "is:unread subject:Your Bill is Available Online"
-INFO: 2022/08/17 22:31:21 notification titled "Bill Due!" successfully sent via gmailalert.PushoverClient
+Processing 2 email queries to determine if any alerts will be emitted...
+Emitted 0 alerts
 ```
 
 ## References
