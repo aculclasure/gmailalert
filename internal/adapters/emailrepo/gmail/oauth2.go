@@ -152,7 +152,7 @@ func (o *OAuth2) loadRemoteToken() error {
 	}()
 
 	authURL := o.cfg.AuthCodeURL("state-token", oauth2.AccessTypeOffline)
-	fmt.Print("To continue, please open a web browser and go to the following URL: ", authURL)
+	fmt.Printf("To continue, please open a web browser and go to the following URL: %s\n", authURL)
 	var code string
 	select {
 	case code = <-svr.NotifyAuthCode():
