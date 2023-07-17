@@ -47,7 +47,6 @@ func (p *Processor) Process(alerts []Alert) error {
 			}
 			alert.PushoverMsg = fmt.Sprintf(`found %d emails matching query "%s"`,
 				len(queryResult.MatchingEmails), alert.GmailQuery)
-			p.Logger.Printf("%s", alert.PushoverMsg)
 			if !processor.AlarmOnResult(queryResult) {
 				p.Logger.Printf(`query result "%+v" did not result in an alarm condition`, queryResult)
 				return nil
